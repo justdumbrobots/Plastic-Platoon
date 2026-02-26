@@ -49,9 +49,9 @@ class GameOverScene extends Phaser.Scene {
     // REDEPLOY button
     this._makeButton(W/2 - 90, py + ph - 54, 160, 38, 0x2A6A2A, 0x52A852, '▶ REDEPLOY', '#AAFFAA', () => {
       this.scene.stop('GameOverScene');
-      this.scene.stop('GameScene');
-      this.scene.start('GameScene');
-      this.scene.start('HUDScene');
+      this.scene.stop('HUDScene');
+      this.scene.start('GameScene');   // restarts GameScene fresh
+      this.scene.launch('HUDScene');   // launches HUDScene in parallel
     });
 
     // RETREAT button

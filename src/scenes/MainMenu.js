@@ -91,8 +91,7 @@ class MainMenu extends Phaser.Scene {
   }
 
   startGame() {
-    this.scene.start('GameScene');
-    this.scene.start('HUDScene');
-    this.scene.stop('MainMenu');
+    this.scene.start('GameScene');   // transitions to GameScene (stops MainMenu)
+    this.scene.launch('HUDScene');   // runs HUDScene in parallel, doesn't stop GameScene
   }
 }

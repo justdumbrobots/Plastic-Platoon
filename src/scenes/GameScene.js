@@ -194,19 +194,10 @@ class GameScene extends Phaser.Scene {
 
     gfx.x = x; gfx.y = y; gfx.rotation = angle;
 
-    // Physics body (static)
-    const body = this.physics.add.staticGroup();
-    const rect = body.create(x, y, null);
-    if (!rect.body) return;
-    const rw = type === 'pencil' ? Math.abs(Math.cos(angle)) * 120 + Math.abs(Math.sin(angle)) * 10 + 10
-                                  : w;
-    const rh = type === 'pencil' ? Math.abs(Math.sin(angle)) * 120 + Math.abs(Math.cos(angle)) * 10 + 10
-                                  : h;
-    rect.setDisplaySize(rw, rh);
-    rect.refreshBody();
-    rect.setVisible(false);
-
-    this.obstacles.push({ gfx, body, x, y, w: rw, h: rh });
+    // AABB for manual collision — account for pencil rotation
+    const ow = type === 'pencil' ? Math.abs(Math.cos(angle)) * w + Math.abs(Math.sin(angle)) * h + 10 : w;
+    const oh = type === 'pencil' ? Math.abs(Math.sin(angle)) * w + Math.abs(Math.cos(angle)) * h + 10 : h;
+    this.obstacles.push({ gfx, x, y, w: ow, h: oh });
   }
 
   // ══════════════════════════════════════════════════════════
