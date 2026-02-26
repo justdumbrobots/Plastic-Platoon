@@ -43,6 +43,8 @@ class GameScene extends Phaser.Scene {
       this._createInner();
     } catch (err) {
       console.error('GameScene create() crashed:', err);
+      // Stop update() from running (this.player may be undefined)
+      this.gameOver = true;
       this.add.text(20, 20,
         'GAME FAILED TO START\n\n' + String(err) + '\n\n' + (err.stack || ''),
         { fontSize: '13px', fontFamily: 'monospace', fill: '#ff4444',
@@ -87,10 +89,11 @@ class GameScene extends Phaser.Scene {
       this._spawnEnemy(cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist);
     }
 
-    // Camera
+    // Camera — center immediately on player so first frame isn't blank
     this.cameras.main.setZoom(1.0);
-    this.cameras.main.startFollow(this.player.container, true, 0.08, 0.08);
     this.cameras.main.setBounds(0, 0, WW, WH);
+    this.cameras.main.centerOn(cx, cy);
+    this.cameras.main.startFollow(this.player.container, true, 0.08, 0.08);
 
     // Input
     this._setupInput();
@@ -632,6 +635,7 @@ class GameScene extends Phaser.Scene {
 
       const dx = p.x - e.x, dy = p.y - e.y;
       const distToPlayer = Math.hypot(dx, dy);
+      if (distToPlayer < 0.1) continue; // avoid division by zero
 
       // ── FSM ──
       switch (e.state) {
@@ -764,7 +768,7 @@ class GameScene extends Phaser.Scene {
       const dx = p.x - sc.x, dy = p.y - sc.y;
       const d  = Math.hypot(dx, dy);
 
-      if (d < C.SCRAP_MAGNET_RANGE) {
+      if (d < C.SCRAP_MAGNET_RANGE && d > 0.1) {
         sc.x += (dx/d) * C.SCRAP_MAGNET_SPEED * dt;
         sc.y += (dy/d) * C.SCRAP_MAGNET_SPEED * dt;
       }
@@ -846,7 +850,7 @@ class GameScene extends Phaser.Scene {
     p.alive = false;
     p.container.destroy();
     this.gameOver = true;
-    this.scene.pause('GameScene');
+    // stop HUD first, then scene.start auto-queues stop(GameScene) + start(GameOverScene)
     this.scene.stop('HUDScene');
     this.scene.start('GameOverScene', {
       kills: this.kills,
