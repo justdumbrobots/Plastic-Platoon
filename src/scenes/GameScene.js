@@ -51,8 +51,13 @@ class GameScene extends Phaser.Scene {
     // Obstacles
     this._spawnObstacles();
 
-    // Safe zone graphics (drawn each frame)
-    this.safeGfx   = this.add.graphics().setDepth(5);
+    // Safe zone graphics
+    this.safeGfx     = this.add.graphics().setDepth(6);   // ring only
+    this.dangerGfx   = this.add.graphics().setDepth(5);   // danger overlay
+    this.safeMaskGfx = this.make.graphics({ add: false }); // mask shape (not in scene)
+    const safeMask   = this.safeMaskGfx.createGeometryMask();
+    safeMask.invertAlpha = true;
+    this.dangerGfx.setMask(safeMask);
     this.safeRadius = C.SAFE_INITIAL_RADIUS;
     this.safeCx     = cx;
     this.safeCy     = cy;
@@ -219,13 +224,6 @@ class GameScene extends Phaser.Scene {
     this.player.container.add([this.player.body, this.player.healthBar]);
     this._drawSoldier(this.player, true);
 
-    // Physics via circle overlay (invisible)
-    const circ = this.physics.add.image(x, y, null).setVisible(false);
-    if (circ.body) {
-      circ.body.setCircle(C.PLAYER_RADIUS);
-      circ.setCollideWorldBounds(true);
-    }
-    this.player.physBody = circ;
   }
 
   _drawSoldier(soldier, isPlayer) {
@@ -426,8 +424,6 @@ class GameScene extends Phaser.Scene {
       this._recoilVy -= Math.sin(p.angle) * C.RECOIL_IMPULSE;
     }
 
-    // Sync invisible physics body
-    if (p.physBody) { p.physBody.x = p.x; p.physBody.y = p.y; }
   }
 
   _redrawHealthBar(soldier) {
@@ -495,7 +491,7 @@ class GameScene extends Phaser.Scene {
           const dx = b.x - e.x, dy = b.y - e.y;
           if (dx*dx + dy*dy < (C.ENEMY_RADIUS + b.gun.bRadius) ** 2) {
             b.spent = true;
-            if (b.gun.explosive) { this._doExplosion(b.x, b.y); }
+            if (b.gun.explosive) { this._doExplosion(b.x, b.y, b.gun); }
             else { this._damageEnemy(e, b.gun.damage); }
             toRemove.push(b); break;
           }
@@ -507,7 +503,7 @@ class GameScene extends Phaser.Scene {
           const dx = b.x - p.x, dy = b.y - p.y;
           if (dx*dx + dy*dy < (C.PLAYER_RADIUS + b.gun.bRadius) ** 2) {
             b.spent = true;
-            if (b.gun.explosive) { this._doExplosion(b.x, b.y); }
+            if (b.gun.explosive) { this._doExplosion(b.x, b.y, b.gun); }
             else { this._damagePlayer(b.gun.damage); }
             toRemove.push(b);
           }
@@ -532,7 +528,7 @@ class GameScene extends Phaser.Scene {
   // ══════════════════════════════════════════════════════════
   //  EXPLOSION
   // ══════════════════════════════════════════════════════════
-  _doExplosion(x, y) {
+  _doExplosion(x, y, gun) {
     // Damage in radius
     const p = this.player;
     [{ isPlayer: true, obj: p }, ...this.enemies.map(e => ({ isPlayer: false, obj: e }))]
@@ -541,7 +537,7 @@ class GameScene extends Phaser.Scene {
         const dx = obj.x - x, dy = obj.y - y;
         const d  = Math.hypot(dx, dy);
         if (d < C.EXPLOSION_RADIUS) {
-          const dmg = C.GUNS[4].damage * (1 - d / C.EXPLOSION_RADIUS);
+          const dmg = gun.damage * (1 - d / C.EXPLOSION_RADIUS);
           if (isPlayer) this._damagePlayer(dmg);
           else          this._damageEnemy(obj, dmg);
         }
@@ -810,20 +806,20 @@ class GameScene extends Phaser.Scene {
   _updateSafeZone(dt) {
     this.safeRadius = Math.max(30, this.safeRadius - C.SAFE_SHRINK_RATE * dt);
 
-    const g = this.safeGfx;
-    g.clear();
+    // Danger overlay — fills entire world; geometry mask punches out safe circle
+    this.dangerGfx.clear();
+    this.dangerGfx.fillStyle(C.DANGER_COLOR, C.DANGER_ALPHA);
+    this.dangerGfx.fillRect(0, 0, C.WORLD_W, C.WORLD_H);
 
-    // Danger overlay (outside zone) — draw full world rect then clip
-    g.fillStyle(C.DANGER_COLOR, C.DANGER_ALPHA);
-    g.fillRect(0, 0, C.WORLD_W, C.WORLD_H);
+    // Update mask shape (the "safe" area that gets subtracted)
+    this.safeMaskGfx.clear();
+    this.safeMaskGfx.fillStyle(0xffffff);
+    this.safeMaskGfx.fillCircle(this.safeCx, this.safeCy, this.safeRadius);
 
-    // Cut out safe circle (fill with transparent — Phaser workaround: draw multiple arcs)
-    g.fillStyle(0x000000, 0);
-    g.fillCircle(this.safeCx, this.safeCy, this.safeRadius);
-
-    // Ring
-    g.lineStyle(3, C.SAFE_RING_COLOR, 0.9);
-    g.strokeCircle(this.safeCx, this.safeCy, this.safeRadius);
+    // Ring border
+    this.safeGfx.clear();
+    this.safeGfx.lineStyle(3, C.SAFE_RING_COLOR, 0.9);
+    this.safeGfx.strokeCircle(this.safeCx, this.safeCy, this.safeRadius);
   }
 
   _applyZoneDamage() {

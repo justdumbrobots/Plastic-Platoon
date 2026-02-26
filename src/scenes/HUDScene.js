@@ -46,14 +46,24 @@ class HUDScene extends Phaser.Scene {
     this.minimapGfx = this.add.graphics();
 
     this._drawAll();
+  }
 
-    // Update every frame via event
-    this.events.on('update', this._drawAll, this);
+  // Runs every frame — pulls live data from GameScene for minimap + safe zone
+  update() {
+    const gs = this.scene.get('GameScene');
+    if (gs && gs.player && !gs.gameOver) {
+      this._state.playerX    = gs.player.x;
+      this._state.playerY    = gs.player.y;
+      this._state.safeRadius = gs.safeRadius;
+      this._state.enemies    = gs.enemies;
+      this._state.safeCx     = gs.safeCx;
+      this._state.safeCy     = gs.safeCy;
+    }
+    this._drawAll();
   }
 
   updateState(s) {
     Object.assign(this._state, s);
-    this._drawAll();
   }
 
   _drawAll() {
