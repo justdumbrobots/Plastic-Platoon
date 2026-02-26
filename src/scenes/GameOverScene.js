@@ -57,6 +57,7 @@ class GameOverScene extends Phaser.Scene {
     // RETREAT button
     this._makeButton(W/2 + 90, py + ph - 54, 140, 38, 0x3A3A3A, 0x666666, '✕ RETREAT', '#AAAAAA', () => {
       this.scene.stop('GameOverScene');
+      this.scene.stop('HUDScene');
       this.scene.stop('GameScene');
       this.scene.start('MainMenu');
     });

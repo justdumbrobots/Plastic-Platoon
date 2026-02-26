@@ -38,6 +38,9 @@ class HUDScene extends Phaser.Scene {
       fontSize: '12px', fontFamily: 'monospace', fill: '#FFD700',
     }).setOrigin(0.5, 1);
 
+    // ── Danger vignette (shown when player outside safe zone) ──
+    this.vignetteGfx = this.add.graphics();
+
     // ── Minimap ──
     const MM = 120, MPAD = 12;
     this.mmX = W - MM - MPAD;
@@ -109,6 +112,17 @@ class HUDScene extends Phaser.Scene {
       this.scrapText.setText('MAX TIER');
     }
     this.scrapText.setY(sbY - 2);
+
+    // ── Danger vignette when outside safe zone ──
+    this.vignetteGfx.clear();
+    const distToCenter = Math.hypot(s.playerX - s.safeCx, s.playerY - s.safeCy);
+    if (distToCenter > s.safeRadius) {
+      const excess = Math.min(1, (distToCenter - s.safeRadius) / 200);
+      const pulse  = 0.5 + 0.5 * Math.sin(Date.now() / 200);
+      const alpha  = excess * pulse * 0.55;
+      this.vignetteGfx.fillStyle(0xFF1744, alpha);
+      this.vignetteGfx.fillRect(0, 0, W, H);
+    }
 
     // ── Minimap ──
     this._drawMinimap(s);

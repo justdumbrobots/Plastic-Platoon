@@ -42,22 +42,14 @@ class GameScene extends Phaser.Scene {
     const WW = C.WORLD_W, WH = C.WORLD_H;
     const cx = WW / 2, cy = WH / 2;
 
-    // Physics world bounds
-    this.physics.world.setBounds(0, 0, WW, WH);
-
     // Background
     this._drawBackground();
 
     // Obstacles
     this._spawnObstacles();
 
-    // Safe zone graphics
-    this.safeGfx     = this.add.graphics().setDepth(6);   // ring only
-    this.dangerGfx   = this.add.graphics().setDepth(5);   // danger overlay
-    this.safeMaskGfx = this.make.graphics({ add: false }); // mask shape (not in scene)
-    const safeMask   = this.safeMaskGfx.createGeometryMask();
-    safeMask.invertAlpha = true;
-    this.dangerGfx.setMask(safeMask);
+    // Safe zone graphics (ring only — no geometry mask needed)
+    this.safeGfx    = this.add.graphics().setDepth(6);
     this.safeRadius = C.SAFE_INITIAL_RADIUS;
     this.safeCx     = cx;
     this.safeCy     = cy;
@@ -97,7 +89,8 @@ class GameScene extends Phaser.Scene {
       callbackScope: this,
     });
 
-    // Notify HUD
+    // Launch HUD after everything is ready
+    this.scene.launch('HUDScene');
     this._notifyHUD();
   }
 
@@ -797,20 +790,14 @@ class GameScene extends Phaser.Scene {
   _updateSafeZone(dt) {
     this.safeRadius = Math.max(30, this.safeRadius - C.SAFE_SHRINK_RATE * dt);
 
-    // Danger overlay — fills entire world; geometry mask punches out safe circle
-    this.dangerGfx.clear();
-    this.dangerGfx.fillStyle(C.DANGER_COLOR, C.DANGER_ALPHA);
-    this.dangerGfx.fillRect(0, 0, C.WORLD_W, C.WORLD_H);
-
-    // Update mask shape (the "safe" area that gets subtracted)
-    this.safeMaskGfx.clear();
-    this.safeMaskGfx.fillStyle(0xffffff);
-    this.safeMaskGfx.fillCircle(this.safeCx, this.safeCy, this.safeRadius);
-
-    // Ring border
+    // Pulsing ring so the border is always visible
+    const pulse = 0.7 + 0.3 * Math.sin(this.time.now / 300);
     this.safeGfx.clear();
-    this.safeGfx.lineStyle(3, C.SAFE_RING_COLOR, 0.9);
+    this.safeGfx.lineStyle(4, C.SAFE_RING_COLOR, pulse);
     this.safeGfx.strokeCircle(this.safeCx, this.safeCy, this.safeRadius);
+    // Thin danger-red fill just outside the ring as a visual cue
+    this.safeGfx.lineStyle(30, C.DANGER_COLOR, 0.25);
+    this.safeGfx.strokeCircle(this.safeCx, this.safeCy, this.safeRadius + 15);
   }
 
   _applyZoneDamage() {
