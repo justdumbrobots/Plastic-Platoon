@@ -86,8 +86,10 @@ class MainMenu extends Phaser.Scene {
     });
 
     // Also start on space/enter
-    this.input.keyboard.once('keydown-SPACE', () => this.startGame());
-    this.input.keyboard.once('keydown-ENTER', () => this.startGame());
+    if (this.input.keyboard) {
+      this.input.keyboard.once('keydown-SPACE', () => this.startGame());
+      this.input.keyboard.once('keydown-ENTER', () => this.startGame());
+    }
   }
 
   startGame() {

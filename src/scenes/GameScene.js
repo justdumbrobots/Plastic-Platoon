@@ -39,6 +39,20 @@ class GameScene extends Phaser.Scene {
 
   // ── create ────────────────────────────────────────────────
   create() {
+    try {
+      this._createInner();
+    } catch (err) {
+      console.error('GameScene create() crashed:', err);
+      this.add.text(20, 20,
+        'GAME FAILED TO START\n\n' + String(err) + '\n\n' + (err.stack || ''),
+        { fontSize: '13px', fontFamily: 'monospace', fill: '#ff4444',
+          backgroundColor: '#000000e0', padding: { x: 10, y: 10 },
+          wordWrap: { width: this.scale.width - 40 } }
+      );
+    }
+  }
+
+  _createInner() {
     const WW = C.WORLD_W, WH = C.WORLD_H;
     const cx = WW / 2, cy = WH / 2;
 
@@ -128,13 +142,15 @@ class GameScene extends Phaser.Scene {
   _drawBackground() {
     const WW = C.WORLD_W, WH = C.WORLD_H;
     const bg = this.add.graphics().setDepth(0);
+    // Sand fill
     bg.fillStyle(C.SAND_COLOR);
     bg.fillRect(0, 0, WW, WH);
+    // Grid lines — lineBetween is the reliable one-call API
     bg.lineStyle(1, C.SAND_LINE, 0.35);
     const step = 80;
-    for (let x = 0; x <= WW; x += step) { bg.moveTo(x, 0); bg.lineTo(x, WH); }
-    for (let y = 0; y <= WH; y += step) { bg.moveTo(0, y); bg.lineTo(WW, y); }
-    bg.strokePath();
+    for (let x = 0; x <= WW; x += step) bg.lineBetween(x, 0, x, WH);
+    for (let y = 0; y <= WH; y += step) bg.lineBetween(0, y, WW, y);
+    // Border
     bg.lineStyle(6, 0x000000, 1);
     bg.strokeRect(0, 0, WW, WH);
   }
