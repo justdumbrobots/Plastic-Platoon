@@ -226,7 +226,7 @@ class GameScene extends Phaser.Scene {
     g.fillStyle(col);
     g.fillCircle(0, 0, r);
     // Rim
-    g.lineStyle(2, Phaser.Display.Color.IntegerToColor(col).darken(30).color);
+    g.lineStyle(2, lerpColor(col, 0x000000, 0.3));
     g.strokeCircle(0, 0, r);
     // Highlight
     g.fillStyle(hi, 0.35);
@@ -255,9 +255,9 @@ class GameScene extends Phaser.Scene {
   //  INPUT
   // ══════════════════════════════════════════════════════════
   _setupInput() {
-    this.cursors = this.input.keyboard.createCursorKeys();
-    this.wasd    = this.input.keyboard.addKeys({ up: 'W', down: 'S', left: 'A', right: 'D' });
-    this.input.mouse.disableContextMenu();
+    this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
+    this.wasd    = this.input.keyboard ? this.input.keyboard.addKeys({ up: 'W', down: 'S', left: 'A', right: 'D' }) : null;
+    if (this.input.mouse) this.input.mouse.disableContextMenu();
 
     // Virtual joysticks for touch
     this._leftJoy  = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
@@ -335,10 +335,10 @@ class GameScene extends Phaser.Scene {
     let mx = 0, my = 0;
 
     // Keyboard
-    if (this.cursors.left.isDown  || this.wasd.left.isDown)  mx -= 1;
-    if (this.cursors.right.isDown || this.wasd.right.isDown) mx += 1;
-    if (this.cursors.up.isDown    || this.wasd.up.isDown)    my -= 1;
-    if (this.cursors.down.isDown  || this.wasd.down.isDown)  my += 1;
+    if (this.cursors && (this.cursors.left.isDown  || this.wasd.left.isDown))  mx -= 1;
+    if (this.cursors && (this.cursors.right.isDown || this.wasd.right.isDown)) mx += 1;
+    if (this.cursors && (this.cursors.up.isDown    || this.wasd.up.isDown))    my -= 1;
+    if (this.cursors && (this.cursors.down.isDown  || this.wasd.down.isDown))  my += 1;
 
     // Left joystick
     if (this._leftJoy.active) {
