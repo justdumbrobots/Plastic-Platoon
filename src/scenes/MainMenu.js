@@ -17,6 +17,11 @@ class MainMenu extends Phaser.Scene {
     for (let y = 0; y < H; y += 40) { grid.moveTo(0, y); grid.lineTo(W, y); }
     grid.strokePath();
 
+    // Version stamp — bottom-right corner; "build v6" means latest code is running
+    this.add.text(W - 8, H - 8, 'build v6', {
+      fontSize: '11px', fontFamily: 'monospace', fill: '#446644',
+    }).setOrigin(1, 1);
+
     // Title
     this.add.text(W / 2, H * 0.28, 'PLASTIC PLATOON', {
       fontSize: '52px',
@@ -66,10 +71,15 @@ class MainMenu extends Phaser.Scene {
       ease: 'Sine.easeInOut',
     });
 
-    // Clickable area
+    // Clickable area — also make full screen clickable as fallback
     const hitZone = this.add.zone(W / 2, btnY + btnH / 2, btnW + 20, btnH + 20)
       .setInteractive({ useHandCursor: true });
     hitZone.on('pointerdown', () => this.startGame());
+
+    // Full-screen fallback click (checks if near the button area)
+    this.input.on('pointerdown', (p) => {
+      if (p.y > btnY - 20 && p.y < btnY + btnH + 20) this.startGame();
+    });
 
     // Controls info
     const controls = [
@@ -93,6 +103,8 @@ class MainMenu extends Phaser.Scene {
   }
 
   startGame() {
+    if (this._starting) return;   // prevent double-fire
+    this._starting = true;
     // Immediately show a loading indicator so the click is confirmed visible
     this.add.text(this.scale.width / 2, this.scale.height / 2, 'DEPLOYING...', {
       fontSize: '28px', fontFamily: 'monospace', fontStyle: 'bold',
