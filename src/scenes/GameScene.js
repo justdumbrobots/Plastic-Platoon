@@ -45,12 +45,14 @@ class GameScene extends Phaser.Scene {
       console.error('GameScene create() crashed:', err);
       // Stop update() from running (this.player may be undefined)
       this.gameOver = true;
+      // setScrollFactor(0) pins text to screen coords so it's always visible
+      // even if the camera has already moved away from world origin
       this.add.text(20, 20,
         'GAME FAILED TO START\n\n' + String(err) + '\n\n' + (err.stack || ''),
         { fontSize: '13px', fontFamily: 'monospace', fill: '#ff4444',
           backgroundColor: '#000000e0', padding: { x: 10, y: 10 },
           wordWrap: { width: this.scale.width - 40 } }
-      );
+      ).setScrollFactor(0).setDepth(999);
     }
   }
 
@@ -109,6 +111,13 @@ class GameScene extends Phaser.Scene {
     // Launch HUD after everything is ready
     this.scene.launch('HUDScene');
     this._notifyHUD();
+
+    // Brief "GAME OK" banner — proves full init completed; auto-hides after 1.5s
+    const okBanner = this.add.text(this.scale.width / 2, 32, '✔ GAME STARTED', {
+      fontSize: '15px', fontFamily: 'monospace', fill: '#AAFFAA',
+      backgroundColor: '#00000099', padding: { x: 8, y: 4 },
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(999);
+    this.time.delayedCall(1500, () => { if (okBanner && okBanner.active) okBanner.destroy(); });
   }
 
   // ── update ────────────────────────────────────────────────

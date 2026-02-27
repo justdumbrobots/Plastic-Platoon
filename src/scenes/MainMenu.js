@@ -93,6 +93,11 @@ class MainMenu extends Phaser.Scene {
   }
 
   startGame() {
-    this.scene.start('GameScene');  // GameScene.create() will launch HUDScene itself
+    // Immediately show a loading indicator so the click is confirmed visible
+    this.add.text(this.scale.width / 2, this.scale.height / 2, 'DEPLOYING...', {
+      fontSize: '28px', fontFamily: 'monospace', fontStyle: 'bold',
+      fill: '#AAFFAA', stroke: '#000', strokeThickness: 4,
+    }).setOrigin(0.5);
+    this.time.delayedCall(80, () => this.scene.start('GameScene'));
   }
 }
