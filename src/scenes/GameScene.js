@@ -29,12 +29,13 @@ class GameScene extends Phaser.Scene {
     this.scrapsGroup = [];
     this.obstacles   = [];
     this.explosions  = [];
-    this._safeTimer  = 0;
-    this._spawnTimer = 0;
-    this._fireTimer  = 0;
-    this._aimAngle   = 0;
-    this._recoilVx   = 0;
-    this._recoilVy   = 0;
+    this._safeTimer   = 0;
+    this._spawnTimer  = 0;
+    this._fireTimer   = 0;
+    this._aimAngle    = 0;
+    this._recoilVx    = 0;
+    this._recoilVy    = 0;
+    this._dashCooldown = 0;
   }
 
   // ── create ────────────────────────────────────────────────
@@ -283,9 +284,17 @@ class GameScene extends Phaser.Scene {
   //  INPUT
   // ══════════════════════════════════════════════════════════
   _setupInput() {
-    this.cursors = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
-    this.wasd    = this.input.keyboard ? this.input.keyboard.addKeys({ up: 'W', down: 'S', left: 'A', right: 'D' }) : null;
+    this.cursors  = this.input.keyboard ? this.input.keyboard.createCursorKeys() : null;
+    this.wasd     = this.input.keyboard ? this.input.keyboard.addKeys({ up: 'W', down: 'S', left: 'A', right: 'D' }) : null;
+    this.spaceKey = this.input.keyboard ? this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE) : null;
     if (this.input.mouse) this.input.mouse.disableContextMenu();
+
+    // Hide the OS cursor — replaced by our in-game reticle
+    this.game.canvas.style.cursor = 'none';
+
+    // Reticle graphics (screen-space, always on top)
+    this._reticleGfx = this.add.graphics().setScrollFactor(0).setDepth(300);
+    this._drawReticle(this.scale.width / 2, this.scale.height / 2);
 
     // Virtual joysticks for touch
     this._leftJoy  = { active: false, id: -1, sx: 0, sy: 0, dx: 0, dy: 0 };
@@ -298,6 +307,37 @@ class GameScene extends Phaser.Scene {
     // Joystick graphics (HUD-layer, fixed camera)
     this.stickGfx = this.add.graphics().setScrollFactor(0).setDepth(100);
     this._drawJoysticks();
+  }
+
+  // Military-style crosshair reticle drawn in screen coords
+  _drawReticle(sx, sy) {
+    const g   = this._reticleGfx;
+    const R   = 18;   // outer ring radius
+    const gap = 5;    // gap between center and line start
+    const len = 9;    // crosshair arm length
+
+    g.clear();
+
+    // Outer ring — gold tint
+    g.lineStyle(1.5, 0xFFD54F, 0.6);
+    g.strokeCircle(sx, sy, R);
+
+    // Second inner ring (thin)
+    g.lineStyle(1, 0xFFD54F, 0.25);
+    g.strokeCircle(sx, sy, R * 0.45);
+
+    // 4 crosshair arms — white, with center gap
+    g.lineStyle(1.5, 0xFFFFFF, 0.95);
+    g.beginPath();
+    g.moveTo(sx,       sy - gap);       g.lineTo(sx,       sy - gap - len);  // top
+    g.moveTo(sx,       sy + gap);       g.lineTo(sx,       sy + gap + len);  // bottom
+    g.moveTo(sx - gap, sy);             g.lineTo(sx - gap - len, sy);        // left
+    g.moveTo(sx + gap, sy);             g.lineTo(sx + gap + len, sy);        // right
+    g.strokePath();
+
+    // Small center dot
+    g.fillStyle(0xFFFFFF, 0.85);
+    g.fillCircle(sx, sy, 1.5);
   }
 
   _drawJoysticks() {
@@ -359,65 +399,56 @@ class GameScene extends Phaser.Scene {
     const p = this.player;
     if (!p.alive) return;
 
-    // ── Movement ──
+    // ── Movement (WASD / arrow keys / left joystick) ──
     let mx = 0, my = 0;
 
-    // Keyboard
     if (this.cursors && (this.cursors.left.isDown  || this.wasd.left.isDown))  mx -= 1;
     if (this.cursors && (this.cursors.right.isDown || this.wasd.right.isDown)) mx += 1;
     if (this.cursors && (this.cursors.up.isDown    || this.wasd.up.isDown))    my -= 1;
     if (this.cursors && (this.cursors.down.isDown  || this.wasd.down.isDown))  my += 1;
 
-    // Left joystick
     if (this._leftJoy.active) {
-      const mag = Math.hypot(this._leftJoy.dx, this._leftJoy.dy);
-      if (mag > 8) { mx += this._leftJoy.dx / mag; my += this._leftJoy.dy / mag; }
+      const jmag = Math.hypot(this._leftJoy.dx, this._leftJoy.dy);
+      if (jmag > 8) { mx += this._leftJoy.dx / jmag; my += this._leftJoy.dy / jmag; }
     }
 
-    // Normalize diagonal
-    const mag = Math.hypot(mx, my);
-    if (mag > 0) { mx /= mag; my /= mag; }
+    const movMag = Math.hypot(mx, my);
+    if (movMag > 0) { mx /= movMag; my /= movMag; }
 
-    // Recoil decay
+    // ── Dash (Space = burst backward, opposite of aim) ──
+    this._dashCooldown -= dt;
+    if (this.spaceKey && Phaser.Input.Keyboard.JustDown(this.spaceKey) && this._dashCooldown <= 0) {
+      this._recoilVx -= Math.cos(this._aimAngle) * C.DASH_IMPULSE;
+      this._recoilVy -= Math.sin(this._aimAngle) * C.DASH_IMPULSE;
+      this._dashCooldown = C.DASH_COOLDOWN;
+    }
+
+    // ── Recoil / velocity decay ──
     this._recoilVx *= Math.pow(1 / C.RECOIL_FRICTION, dt);
     this._recoilVy *= Math.pow(1 / C.RECOIL_FRICTION, dt);
 
-    // Position
-    const spd = C.PLAYER_SPEED;
-    p.x += (mx * spd + this._recoilVx) * dt;
-    p.y += (my * spd + this._recoilVy) * dt;
+    // ── Position ──
+    p.x += (mx * C.PLAYER_SPEED + this._recoilVx) * dt;
+    p.y += (my * C.PLAYER_SPEED + this._recoilVy) * dt;
     p.x  = Phaser.Math.Clamp(p.x, C.PLAYER_RADIUS, C.WORLD_W - C.PLAYER_RADIUS);
     p.y  = Phaser.Math.Clamp(p.y, C.PLAYER_RADIUS, C.WORLD_H - C.PLAYER_RADIUS);
-
-    // Obstacle collision (simple circle-rect push)
     this._resolveObstacleCollisions(p, C.PLAYER_RADIUS);
 
-    // ── Aim & Shoot ──
-    let shooting = false;
-
-    // Mouse aim
-    const cam    = this.cameras.main;
+    // ── Aim — always toward mouse; right joystick overrides on touch ──
+    const cam     = this.cameras.main;
     const worldMx = (this.input.mousePointer.x - cam.x) / cam.zoom + cam.scrollX;
     const worldMy = (this.input.mousePointer.y - cam.y) / cam.zoom + cam.scrollY;
     let aimX = worldMx - p.x, aimY = worldMy - p.y;
 
-    // Right joystick overrides
     if (this._rightJoy.active) {
       const rmag = Math.hypot(this._rightJoy.dx, this._rightJoy.dy);
-      if (rmag > 8) {
-        aimX = this._rightJoy.dx; aimY = this._rightJoy.dy;
-        shooting = true;
-      }
-    } else if (this.input.mousePointer.isDown) {
-      shooting = true;
+      if (rmag > 8) { aimX = this._rightJoy.dx; aimY = this._rightJoy.dy; }
     }
 
     const aimMag = Math.hypot(aimX, aimY);
     if (aimMag > 0) {
       p.angle = Math.atan2(aimY, aimX);
       this._aimAngle = p.angle;
-    } else if (mag > 0) {
-      p.angle = Math.atan2(my, mx);
     }
 
     // Redraw soldier
@@ -426,16 +457,20 @@ class GameScene extends Phaser.Scene {
     p.container.rotation = p.angle;
     this._redrawHealthBar(p);
 
-    // Fire
+    // ── Auto-fire ──
     this._fireTimer += dt * 1000;
     const gun = C.GUNS[this.tierIndex];
-    if (shooting && this._fireTimer >= gun.fireRate) {
+    if (this._fireTimer >= gun.fireRate) {
       this._fireTimer = 0;
       this._spawnBullet(p.x, p.y, p.angle, gun, true);
       this._recoilVx -= Math.cos(p.angle) * C.RECOIL_IMPULSE;
       this._recoilVy -= Math.sin(p.angle) * C.RECOIL_IMPULSE;
     }
 
+    // ── Reticle — track mouse in screen coords ──
+    if (this._reticleGfx) {
+      this._drawReticle(this.input.mousePointer.x, this.input.mousePointer.y);
+    }
   }
 
   _redrawHealthBar(soldier) {

@@ -37,6 +37,10 @@ const C = {
   RECOIL_IMPULSE: 50,
   RECOIL_FRICTION: 9,
 
+  // Dash
+  DASH_IMPULSE: 560,
+  DASH_COOLDOWN: 0.85,
+
   // Bullet
   BULLET_LIFETIME: 3000, // ms
 
