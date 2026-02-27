@@ -66,6 +66,7 @@ class HUDScene extends Phaser.Scene {
   }
 
   updateState(s) {
+    if (!this._state) return;
     Object.assign(this._state, s);
   }
 
