@@ -34,7 +34,7 @@ const C = {
   SCRAP_COLOR: 0xFFD700,
 
   // Recoil
-  RECOIL_IMPULSE: 110,
+  RECOIL_IMPULSE: 50,
   RECOIL_FRICTION: 9,
 
   // Bullet

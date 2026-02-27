@@ -452,7 +452,7 @@ class GameScene extends Phaser.Scene {
   // ══════════════════════════════════════════════════════════
   //  BULLET
   // ══════════════════════════════════════════════════════════
-  _spawnBullet(x, y, angle, gun, fromPlayer) {
+  _spawnBullet(x, y, angle, gun, fromPlayer, shooterEnemy = null) {
     const r  = C.PLAYER_RADIUS;
     const bx = x + Math.cos(angle) * (r + gun.barrelW);
     const by = y + Math.sin(angle) * (r + gun.barrelW);
@@ -462,7 +462,7 @@ class GameScene extends Phaser.Scene {
     const gfx = this.add.graphics().setDepth(18);
     this._drawBullet(gfx, gun.bRadius, gun.color);
 
-    const bullet = { gfx, x: bx, y: by, vx, vy, fromPlayer, gun, born: this.time.now, spent: false };
+    const bullet = { gfx, x: bx, y: by, vx, vy, fromPlayer, shooterEnemy, gun, born: this.time.now, spent: false };
     this.bullets.push(bullet);
     gfx.x = bx; gfx.y = by;
   }
@@ -518,6 +518,19 @@ class GameScene extends Phaser.Scene {
             if (b.gun.explosive) { this._doExplosion(b.x, b.y, b.gun); }
             else { this._damagePlayer(b.gun.damage); }
             toRemove.push(b);
+          }
+        }
+        // Also check against other enemies (friendly fire)
+        if (!b.spent) {
+          for (const e of this.enemies) {
+            if (!e.alive || e === b.shooterEnemy) continue;
+            const dx = b.x - e.x, dy = b.y - e.y;
+            if (dx*dx + dy*dy < (C.ENEMY_RADIUS + b.gun.bRadius) ** 2) {
+              b.spent = true;
+              if (b.gun.explosive) { this._doExplosion(b.x, b.y, b.gun); }
+              else { this._damageEnemy(e, b.gun.damage); }
+              toRemove.push(b); break;
+            }
           }
         }
       }
@@ -599,6 +612,8 @@ class GameScene extends Phaser.Scene {
       strafeDir: 1,
       fireTimer: 0,
       tierIndex: 0,
+      aggroTarget: null,
+      aggroTimer: Math.random() * 3,
       scraps: Math.floor(Math.random() * 16),
       body, healthBar: hpBar,
       container: { x, y },  // dummy for compatibility
@@ -642,9 +657,29 @@ class GameScene extends Phaser.Scene {
     for (const e of this.enemies) {
       if (!e.alive) continue;
 
-      const dx = p.x - e.x, dy = p.y - e.y;
-      const distToPlayer = Math.hypot(dx, dy);
-      if (distToPlayer < 0.1) continue; // avoid division by zero
+      // ── Aggro target selection (re-evaluate periodically) ──
+      e.aggroTimer -= dt;
+      if (e.aggroTarget && !e.aggroTarget.alive) e.aggroTarget = null;
+      if (e.aggroTimer <= 0) {
+        e.aggroTimer = 2.5 + Math.random() * 2.5;
+        // 40% chance to pick the nearest living enemy instead of the player
+        if (Math.random() < 0.4) {
+          let closest = null, closestDist = C.ENEMY_DETECT_RANGE * 1.5;
+          for (const other of this.enemies) {
+            if (other === e || !other.alive) continue;
+            const d = Math.hypot(other.x - e.x, other.y - e.y);
+            if (d < closestDist) { closestDist = d; closest = other; }
+          }
+          e.aggroTarget = closest; // null if no nearby enemy found
+        } else {
+          e.aggroTarget = null; // target player
+        }
+      }
+
+      const tgt = (e.aggroTarget && e.aggroTarget.alive) ? e.aggroTarget : p;
+      const dx = tgt.x - e.x, dy = tgt.y - e.y;
+      const distToTarget = Math.hypot(dx, dy);
+      if (distToTarget < 0.1) continue; // avoid division by zero
 
       // ── FSM ──
       switch (e.state) {
@@ -662,16 +697,16 @@ class GameScene extends Phaser.Scene {
             e.y += (tdy/td) * C.ENEMY_SPEED * 0.55 * dt;
             e.angle = Math.atan2(tdy, tdx);
           }
-          if (distToPlayer < C.ENEMY_DETECT_RANGE) e.state = 'chase';
+          if (distToTarget < C.ENEMY_DETECT_RANGE) e.state = 'chase';
           break;
         }
         case 'chase': {
-          const nx = dx/distToPlayer, ny = dy/distToPlayer;
+          const nx = dx/distToTarget, ny = dy/distToTarget;
           e.x += nx * C.ENEMY_SPEED * dt;
           e.y += ny * C.ENEMY_SPEED * dt;
           e.angle = Math.atan2(dy, dx);
-          if (distToPlayer < C.ENEMY_ATTACK_RANGE) e.state = 'attack';
-          if (distToPlayer > C.ENEMY_DETECT_RANGE * 1.2) e.state = 'wander';
+          if (distToTarget < C.ENEMY_ATTACK_RANGE) e.state = 'attack';
+          if (distToTarget > C.ENEMY_DETECT_RANGE * 1.2) e.state = 'wander';
           if (e.hp / e.maxHp < 0.25) e.state = 'flee';
           break;
         }
@@ -689,15 +724,15 @@ class GameScene extends Phaser.Scene {
           const gun = C.GUNS[e.tierIndex];
           if (e.fireTimer >= gun.fireRate) {
             e.fireTimer = 0;
-            if (p.alive) this._spawnBullet(e.x, e.y, e.angle, gun, false);
+            if (tgt.alive) this._spawnBullet(e.x, e.y, e.angle, gun, false, e);
           }
 
-          if (distToPlayer > C.ENEMY_ATTACK_RANGE * 1.1) e.state = 'chase';
+          if (distToTarget > C.ENEMY_ATTACK_RANGE * 1.1) e.state = 'chase';
           if (e.hp / e.maxHp < 0.25) e.state = 'flee';
           break;
         }
         case 'flee': {
-          const fx = -dx/distToPlayer, fy = -dy/distToPlayer;
+          const fx = -dx/distToTarget, fy = -dy/distToTarget;
           e.x += fx * C.ENEMY_SPEED * 1.25 * dt;
           e.y += fy * C.ENEMY_SPEED * 1.25 * dt;
           e.angle = Math.atan2(fy, fx);
